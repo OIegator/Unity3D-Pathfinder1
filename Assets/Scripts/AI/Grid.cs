@@ -1,6 +1,6 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
+using Priority_Queue;
 
 public class Grid : MonoBehaviour
 {
@@ -24,15 +24,15 @@ public class Grid : MonoBehaviour
         foreach (PathNode node in grid)
         {
             //  Пока что считаем все вершины проходимыми, без учёта препятствий
-            node.walkable = true;
-            /*node.walkable = !Physics.CheckSphere(node.body.transform.position, 1);
+
+            node.walkable = !Physics.CheckSphere(node.body.transform.position, 1);
             if (node.walkable)
                 node.Fade();
             else
             {
-                node.Illuminate();
+                node.Close();
                 Debug.Log("Not walkable!");
-            }*/
+            }
         }
     }
 
@@ -66,7 +66,7 @@ public class Grid : MonoBehaviour
         List<Vector2Int> nodes = new List<Vector2Int>();
         for (int x = current.x - 1; x <= current.x + 1; ++x)
             for (int y = current.y - 1; y <= current.y + 1; ++y)
-                if (x >= 0 && y >= 0 && x < grid.GetLength(0) && y < grid.GetLength(1) && (x != current.x || y != current.y))
+                if (x >= 0 && y >= 0 && x < grid.GetLength(0) && y < grid.GetLength(1) && (x != current.x || y != current.y) && grid[x, y].walkable)
                     nodes.Add(new Vector2Int(x, y));
                 return nodes;
     }
@@ -95,24 +95,29 @@ public class Grid : MonoBehaviour
         //  Начальную вершину отдельно изменяем
         start.ParentNode = null;
         start.Distance = 0;
-        
+
+        HashSet<Vector2Int> visited_nodes = new HashSet<Vector2Int>();
         //  Очередь вершин в обработке - в A* необходимо заменить на очередь с приоритетом
         Queue<Vector2Int> nodes = new Queue<Vector2Int>();
+
+        SimplePriorityQueue<Vector2Int> unvisited_nodes = new SimplePriorityQueue<Vector2Int>();
         //  Начальную вершину помещаем в очередь
-        nodes.Enqueue(startNode);
+        unvisited_nodes.Enqueue(startNode, 0);
         //  Пока не обработаны все вершины (очередь содержит узлы для обработки)
-        while(nodes.Count != 0)
+        while(unvisited_nodes.Count != 0)
         {
-            Vector2Int current = nodes.Dequeue();
+            Vector2Int current = unvisited_nodes.Dequeue();
             //  Если достали целевую - можно заканчивать (это верно и для A*)
             if (current == finishNode) break;
+            if (visited_nodes.Contains(current)) continue;
+            visited_nodes.Add(current);
             //  Получаем список соседей
             var neighbours = GetNeighbours(current);
             foreach (var node in neighbours)
                 if(grid[node.x, node.y].walkable && grid[node.x, node.y].Distance > grid[current.x, current.y].Distance + PathNode.Dist(grid[node.x, node.y], grid[current.x, current.y]))
                 {
                     grid[node.x, node.y].ParentNode = grid[current.x, current.y];
-                    nodes.Enqueue(node);
+                    unvisited_nodes.Enqueue(node, PathNode.Dist(grid[node.x, node.y], grid[finishNode.x, finishNode.y]));
                 }
         }
         //  Восстанавливаем путь от целевой к стартовой
